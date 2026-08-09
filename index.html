@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Zenith Flash — Constellations</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+  }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 12px; left: 16px;
+    color: #8fa8c4; font-size: 12px; line-height: 1.6;
+    text-shadow: 0 0 4px #000;
+    user-select: none;
+  }
+  #hud .label { color: #55708f; }
+  #replay {
+    position: fixed; bottom: 16px; left: 16px;
+    background: rgba(20,25,35,0.7); color: #cfe0f2;
+    border: 1px solid #3a4f66; padding: 8px 14px;
+    font-family: 'Courier New', monospace; font-size: 12px;
+    cursor: pointer; letter-spacing: 0.05em;
+  }
+  #replay:hover { background: rgba(40,55,75,0.9); }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div id="hud">
+  <div><span class="label">LOCATION</span> 39.83N 98.58W (central CONUS)</div>
+  <div><span class="label">EVENT</span> 500 kt @ 200,000 km — zenith</div>
+  <div><span class="label">PEAK MAG</span> <span id="magReadout">—</span></div>
+  <div><span class="label">T+</span> <span id="tReadout">0.00</span> s</div>
+</div>
+<button id="replay">REPLAY</button>
+
+<script>
+// ===== Shared physics: magnitude light curve =====
+const PEAK_MAG = -12.30;
+const NAKED_EYE_LIMIT = 6.0;
+const TAU = 1.62; // decay time constant, seconds
+const PRE_DELAY = 5.0; // seconds of quiet sky before detonation
+const RISE_TIME = 0.1; // seconds to reach peak (after PRE_DELAY)
+const TOTAL_DURATION = 30.0 + PRE_DELAY; // seconds, total animation length
+
+function magnitudeAtTime(tRaw) {
+  const t = tRaw - PRE_DELAY; // shift so detonation physics begins at t = PRE_DELAY
+  if (t <= 0) return NAKED_EYE_LIMIT + 2; // quiet sky, pre-detonation
+  if (t < RISE_TIME) {
+    const frac = Math.max(t / RISE_TIME, 0.001);
+    return PEAK_MAG + 2.5 * Math.log10(1/frac);
+  }
+  const fluxRatio = Math.exp(-(t - RISE_TIME) / TAU);
+  return PEAK_MAG - 2.5 * Math.log10(fluxRatio);
+}
+
+// Convert magnitude to a rendering radius + alpha for the flash point.
+// Reference: naked eye limit (mag 6) -> essentially invisible (radius ~0)
+// Peak (mag -12.3) -> large bright glow
+function magToVisual(mag) {
+  const visibility = Math.max(0, (NAKED_EYE_LIMIT - mag) / (NAKED_EYE_LIMIT - PEAK_MAG));
+  // visibility: 0 (invisible) to 1 (peak brightness)
+  return visibility;
+}
+
+// ===== Canvas setup =====
+const canvas = document.getElementById('sky');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W/2; cy = H/2;
+}
+window.addEventListener('resize', () => { resize(); buildHorizon(); });
+resize();
+
+// ===== Starfield =====
+// Generate a fixed random starfield (seeded-ish via simple LCG for reproducibility)
+let starSeed = 42;
+function rand() {
+  starSeed = (starSeed * 1103515245 + 12345) & 0x7fffffff;
+  return (starSeed % 10000) / 10000;
+}
+const stars = [];
+const STAR_COUNT = 500;
+const SKY_FRACTION = 0.85; // keep stars above the horizon band
+for (let i = 0; i < STAR_COUNT; i++) {
+  stars.push({
+    x: rand() * W,
+    y: rand() * H * SKY_FRACTION,
+    r: rand() * 1.3 + 0.3,
+    baseAlpha: rand() * 0.5 + 0.4
+  });
+}
+// re-scatter proportionally on resize
+function rescatterStars() {
+  for (const s of stars) {
+    s.x = rand() * W;
+    s.y = rand() * H * SKY_FRACTION;
+  }
+}
+
+// ===== Constellations (real asterisms: Cygnus, Lyra, Cassiopeia) =====
+// Star positions are laid out as fractional (u,v) offsets from screen center, preserving
+// each constellation's real relative shape/orientation (Northern Cross, Cassiopeia's "W", 
+// Lyra's small parallelogram), scaled and placed for a zenith-facing composition.
+// Magnitudes are real (approximate catalog values) and used to size/brighten each star.
+
+const constellations = [
+  {
+    name: "CYGNUS",
+    // Northern Cross asterism: Deneb (tail/top), Sadr (center), Albireo (head/bottom),
+    // Gienah + Delta Cyg (wings)
+    stars: [
+      { name: "Deneb",   u:  0.02, v: -0.30, mag: 1.25 },
+      { name: "Sadr",    u:  0.00, v: -0.10, mag: 2.20 },
+      { name: "Gienah",  u: -0.18, v: -0.06, mag: 2.46 },
+      { name: "Delta Cyg", u: 0.16, v: -0.14, mag: 2.87 },
+      { name: "Albireo", u:  0.00, v:  0.16, mag: 3.05 }
+    ],
+    lines: [[0,1],[1,2],[1,3],[1,4]]
+  },
+  {
+    name: "LYRA",
+    stars: [
+      { name: "Vega",    u: 0.34, v: -0.22, mag: 0.03 },
+      { name: "Sheliak", u: 0.38, v: -0.10, mag: 3.52 },
+      { name: "Sulafat", u: 0.42, v: -0.08, mag: 3.24 },
+      { name: "Delta Lyr", u: 0.40, v: -0.16, mag: 4.30 }
+    ],
+    lines: [[0,3],[3,1],[1,2],[2,3]]
+  },
+  {
+    name: "CASSIOPEIA",
+    // The "W" shape
+    stars: [
+      { name: "Caph",    u: -0.36, v: -0.34, mag: 2.28 },
+      { name: "Schedar",  u: -0.30, v: -0.24, mag: 2.24 },
+      { name: "Gamma Cas", u: -0.22, v: -0.30, mag: 2.47 },
+      { name: "Ruchbah",  u: -0.14, v: -0.20, mag: 2.68 },
+      { name: "Segin",    u: -0.06, v: -0.28, mag: 3.35 }
+    ],
+    lines: [[0,1],[1,2],[2,3],[3,4]]
+  }
+];
+
+function magToStarSize(mag) {
+  // brighter (lower mag) -> bigger radius
+  return Math.max(1.2, 4.2 - mag * 0.7);
+}
+function magToStarAlpha(mag) {
+  return Math.max(0.35, 1.0 - mag * 0.13);
+}
+
+function drawConstellations(visibility) {
+  const scale = Math.min(W, H) * 0.85;
+  const fadeFromFlash = 1 - visibility * 0.7; // constellation lines dim a bit during flash
+
+  ctx.save();
+  for (const c of constellations) {
+    // lines
+    ctx.strokeStyle = `rgba(120,150,190,${0.35 * fadeFromFlash})`;
+    ctx.lineWidth = 1;
+    for (const [a,b] of c.lines) {
+      const sa = c.stars[a], sb = c.stars[b];
+      ctx.beginPath();
+      ctx.moveTo(cx + sa.u*scale, cy + sa.v*scale);
+      ctx.lineTo(cx + sb.u*scale, cy + sb.v*scale);
+      ctx.stroke();
+    }
+    // stars
+    for (const s of c.stars) {
+      const x = cx + s.u*scale, y = cy + s.v*scale;
+      const r = magToStarSize(s.mag);
+      const a = magToStarAlpha(s.mag) * fadeFromFlash;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.arc(x, y, r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // constellation name label (near first star, offset)
+    const labelStar = c.stars[0];
+    const lx = cx + labelStar.u*scale;
+    const ly = cy + labelStar.v*scale - 14;
+    ctx.font = "11px 'Courier New', monospace";
+    ctx.fillStyle = `rgba(140,170,205,${0.75 * fadeFromFlash})`;
+    ctx.textAlign = "center";
+    ctx.fillText(c.name, lx, ly);
+  }
+  ctx.restore();
+}
+
+// ===== Horizon / ground silhouette =====
+// Flat plains horizon (central Kansas), low relief with gentle rolling variation
+let horizonPoints = [];
+function buildHorizon() {
+  horizonPoints = [];
+  const groundY = H * 0.82;
+  const segments = 60;
+  let seed2 = 777;
+  function r2() {
+    seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff;
+    return (seed2 % 10000) / 10000;
+  }
+  for (let i = 0; i <= segments; i++) {
+    const x = (W / segments) * i;
+    // Low-relief rolling plains: small smooth variation, occasional silo/tree-line bump
+    const roll = Math.sin(i * 0.4) * 4 + Math.sin(i * 1.3) * 2;
+    const bump = (r2() < 0.08) ? r2() * 14 : 0; // rare small structure (silo, treeline)
+    horizonPoints.push({ x, y: groundY - roll - bump });
+  }
+}
+
+function drawGround(visibility) {
+  const groundBaseY = H * 0.82;
+  // Ground illumination responds to flash - normally near-black, briefly lit by flash
+  const groundLight = visibility * 0.5;
+
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  ctx.lineTo(horizonPoints[0].x, horizonPoints[0].y);
+  for (const p of horizonPoints) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(W, H);
+  ctx.closePath();
+
+  const groundGrad = ctx.createLinearGradient(0, groundBaseY - 20, 0, H);
+  groundGrad.addColorStop(0, `rgba(${40+groundLight*180},${38+groundLight*160},${34+groundLight*130},1)`);
+  groundGrad.addColorStop(1, `rgba(${8+groundLight*40},${8+groundLight*35},${8+groundLight*30},1)`);
+  ctx.fillStyle = groundGrad;
+  ctx.fill();
+
+  // horizon line highlight when flash is bright
+  if (visibility > 0.05) {
+    ctx.beginPath();
+    ctx.moveTo(horizonPoints[0].x, horizonPoints[0].y);
+    for (const p of horizonPoints) ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = `rgba(255,230,190,${visibility*0.6})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+
+// ===== Flash rendering =====
+function drawFlash(visibility, mag) {
+  if (visibility <= 0.001) return;
+  // Glow radius scales with visibility (roughly), capped for full-screen bloom near peak
+  const maxGlowRadius = Math.min(W, H) * 0.9;
+  const coreRadius = 3 + visibility * 14;
+  const glowRadius = 20 + visibility * visibility * maxGlowRadius;
+
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+  grad.addColorStop(0, `rgba(255,255,255,${0.95*visibility})`);
+  grad.addColorStop(0.05, `rgba(255,250,235,${0.85*visibility})`);
+  grad.addColorStop(0.25, `rgba(255,230,180,${0.35*visibility})`);
+  grad.addColorStop(0.6, `rgba(255,210,150,${0.10*visibility})`);
+  grad.addColorStop(1, `rgba(255,200,140,0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // bright core
+  ctx.beginPath();
+  ctx.fillStyle = `rgba(255,255,255,${Math.min(1, visibility*1.3)})`;
+  ctx.arc(cx, cy, coreRadius, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// ===== Animation loop =====
+let startTime = null;
+let running = true;
+
+function frame(now) {
+  if (startTime === null) startTime = now;
+  const t = (now - startTime) / 1000;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  // stars, dimmed slightly by flash glow when bright (simulate sky washout)
+  const mag = magnitudeAtTime(t);
+  const visibility = magToVisual(mag);
+  const starDim = 1 - visibility * 0.85;
+
+  for (const s of stars) {
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255,255,255,${s.baseAlpha * starDim})`;
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  drawConstellations(visibility);
+  drawFlash(visibility, mag);
+  drawGround(visibility);
+
+  const tSinceDet = t - PRE_DELAY;
+  document.getElementById('tReadout').textContent =
+    (tSinceDet < 0 ? '-' + Math.abs(tSinceDet).toFixed(2) : '+' + tSinceDet.toFixed(2));
+  document.getElementById('magReadout').textContent =
+    (t <= PRE_DELAY || t > TOTAL_DURATION) ? '—' : mag.toFixed(2);
+
+  if (t < TOTAL_DURATION && running) {
+    requestAnimationFrame(frame);
+  }
+}
+
+function startAnimation() {
+  startTime = null;
+  running = true;
+  rescatterStars();
+  buildHorizon();
+  requestAnimationFrame(frame);
+}
+
+document.getElementById('replay').addEventListener('click', startAnimation);
+
+startAnimation();
+</script>
+</body>
+</html>
