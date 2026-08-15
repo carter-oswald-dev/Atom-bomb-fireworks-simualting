@@ -46,9 +46,10 @@ and washout effect on the visible stars.
 | Mag | Live apparent magnitude of the flash at the current animation time |
 | T+ | Seconds since detonation (negative = before flash) |
 | Status | Playing / Paused / Stopped |
-| ▶ PLAY | Starts or resumes the animation from wherever it left off |
+| ▶ PLAY | Resumes the animation after a PAUSE, from exactly where it left off. It does **not** start a fresh run — that happens automatically when you hit DETONATE (see right sidebar) |
 | ⏸ PAUSE | Freezes the animation; time is preserved |
 | ⟲ RESTART | Resets to T+0. If it was playing, keeps playing from the start |
+| Brightness graph | Shows the flash's brightness over time — toggle between LUMINANCE and MAGNITUDE. A live dot tracks the current position during playback |
 
 If the computed peak brightness is fainter than magnitude **+6.0** (the
 naked-eye visibility limit), a warning appears telling you the flash won't
@@ -57,14 +58,15 @@ be visible — try a bigger yield or shorter distance.
 **Right sidebar**
 | Control | What it does |
 |---|---|
-| Preset scenarios dropdown | Loads a built-in scenario from `scenarios/` |
+| Preset scenarios dropdown | Loads a built-in scenario from `scenarios/` and **starts playing immediately** |
 | Scenario description | Shows the preset's description (if it has one) |
 | LOAD SCENARIO JSON FILE | Loads a single scenario `.json` from your computer |
 | Yield / Distance fields | Manual entry, used when "Custom" is selected |
-| DETONATE | Applies the manually-entered yield/distance |
+| DETONATE | Applies the manually-entered yield/distance and **starts playing immediately** |
 
-Loading a scenario or clicking DETONATE always resets playback to a paused
-frame at T+0 — you still have to hit Play yourself.
+Loading a scenario or clicking DETONATE resets to T+0 and starts playing
+right away — no extra click needed. Use PLAY on the left only if you've
+paused and want to resume.
 
 ---
 
@@ -217,3 +219,22 @@ capture.
 `index.html` has no external dependencies — no build step, no npm, no
 CDN links. It's a single static file plus the optional `scenarios/` data
 folder.
+
+---
+
+## Changelog
+
+- **Added brightness curve graph.** A line graph now sits below the
+  playback controls in the left sidebar, showing the flash's brightness
+  over time. Toggle between **LUMINANCE** (linear y-axis — luminance spans
+  orders of magnitude, so a linear scale shows the true spike-and-decay
+  shape) and **MAGNITUDE** (also a linear y-axis, since magnitude is
+  already a logarithmic quantity by definition — a dashed line marks the
+  naked-eye visibility limit at magnitude 6). A live dot tracks the
+  current position on the curve during playback, stays put while paused,
+  and jumps back to the start on restart.
+- **Fixed DETONATE / scenario selection not starting playback.** Clicking
+  **DETONATE** or picking a preset from the scenario dropdown now resets
+  to T+0 and starts playing immediately — no extra click needed. The
+  left-side **PLAY** button is only needed afterward, to resume from a
+  **PAUSE**.

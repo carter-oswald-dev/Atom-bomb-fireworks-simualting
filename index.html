@@ -123,6 +123,25 @@
   }
   #playbackPanel button:hover { background: rgba(40,55,75,0.9); }
   #playbackPanel button:disabled { opacity: 0.4; cursor: default; }
+  #graphPanel {
+    margin-top: 12px;
+    background: rgba(8,12,18,0.55);
+    border: 1px solid rgba(80,110,145,0.35);
+    border-radius: 4px;
+    padding: 8px 8px 6px 8px;
+    color: #9fb6d4; font-size: 10px;
+  }
+  #graphToggle { display: flex; gap: 4px; margin-bottom: 6px; }
+  .graphModeBtn {
+    flex: 1 1 0;
+    background: rgba(20,25,35,0.7); color: #7f97b3;
+    border: 1px solid #3a4f66; padding: 4px 2px;
+    font-family: 'Courier New', monospace; font-size: 9px;
+    cursor: pointer; letter-spacing: 0.02em;
+  }
+  .graphModeBtn.active { background: rgba(60,90,125,0.85); color: #dfeaf7; }
+  #graphCanvas { display: block; width: 100%; height: auto; }
+  #graphAxisNote { margin-top: 4px; color: #56728f; font-size: 9px; text-align: center; }
   @media (max-width: 800px) {
     #app { flex-direction: column; }
     #sidebarLeft, #sidebarRight {
@@ -149,6 +168,14 @@
       <button id="playBtn">▶ PLAY</button>
       <button id="pauseBtn" disabled>⏸ PAUSE</button>
       <button id="restartBtn">⟲ RESTART</button>
+    </div>
+    <div id="graphPanel">
+      <div id="graphToggle">
+        <button id="graphModeLum" class="graphModeBtn active">LUMINANCE</button>
+        <button id="graphModeMag" class="graphModeBtn">MAGNITUDE</button>
+      </div>
+      <canvas id="graphCanvas" width="216" height="130"></canvas>
+      <div id="graphAxisNote"></div>
     </div>
   </div>
   <div id="skyWrap">
@@ -526,6 +553,134 @@ function drawFlash(visibility, mag) {
   ctx.fill();
 }
 
+// ===== Brightness curve graph (luminance / magnitude, with live position dot) =====
+let graphMode = 'lum'; // 'lum' | 'mag'
+let graphCurve = []; // [{t, mag, lum}], t is seconds since detonation (0 = flash start)
+const graphCanvas = document.getElementById('graphCanvas');
+const graphCtx = graphCanvas.getContext('2d');
+
+function buildGraphCurve() {
+  graphCurve = [];
+  const samples = 160;
+  const postDetSpan = TOTAL_DURATION - PRE_DELAY; // seconds from flash start to end of animation
+  for (let i = 0; i <= samples; i++) {
+    const tSinceDet = (postDetSpan * i) / samples;
+    const mag = magnitudeAtTime(tSinceDet + PRE_DELAY);
+    const lum = Math.pow(10, -0.4 * mag);
+    graphCurve.push({ t: tSinceDet, mag, lum });
+  }
+}
+
+function drawGraph() {
+  const w = graphCanvas.width, h = graphCanvas.height;
+  graphCtx.clearRect(0, 0, w, h);
+  if (graphCurve.length < 2) return;
+
+  const padL = 34, padR = 6, padT = 6, padB = 16;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  const tMax = graphCurve[graphCurve.length - 1].t || 1;
+
+  let yMin, yMax, valueOf;
+  if (graphMode === 'lum') {
+    // Linear scale: luminance genuinely spans orders of magnitude, so a
+    // linear y-axis shows the true spike-and-decay shape (mostly near zero
+    // with a sharp peak), which is the physically honest picture.
+    valueOf = (p) => p.lum;
+    yMin = 0;
+    yMax = Math.max(...graphCurve.map(p => p.lum)) * 1.05 || 1;
+  } else {
+    // Magnitude is already a logarithmic quantity by definition, so its
+    // y-axis stays linear-in-magnitude-units (that's the normal, correct
+    // way to plot magnitude — do not re-log it).
+    valueOf = (p) => p.mag;
+    const magVals = graphCurve.map(p => p.mag);
+    yMin = Math.min(...magVals) - 1;
+    yMax = Math.max(NAKED_EYE_LIMIT + 1, Math.max(...magVals) + 1);
+  }
+
+  function xOf(t) { return padL + (t / tMax) * plotW; }
+  function yOf(v) {
+    // For magnitude, smaller/negative = brighter = should plot HIGHER on screen.
+    if (graphMode === 'mag') {
+      return padT + ((v - yMin) / (yMax - yMin)) * plotH;
+    }
+    // For luminance, larger = brighter = higher on screen (standard orientation).
+    return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  }
+
+  // Axis lines
+  graphCtx.strokeStyle = 'rgba(80,110,145,0.35)';
+  graphCtx.lineWidth = 1;
+  graphCtx.beginPath();
+  graphCtx.moveTo(padL, padT); graphCtx.lineTo(padL, padT+plotH); graphCtx.lineTo(padL+plotW, padT+plotH);
+  graphCtx.stroke();
+
+  // Naked-eye-limit reference line (mag 6) for magnitude mode
+  if (graphMode === 'mag') {
+    const yLimit = padT + ((NAKED_EYE_LIMIT - yMin) / (yMax - yMin)) * plotH;
+    graphCtx.strokeStyle = 'rgba(224,163,92,0.45)';
+    graphCtx.setLineDash([3,3]);
+    graphCtx.beginPath();
+    graphCtx.moveTo(padL, yLimit); graphCtx.lineTo(padL+plotW, yLimit);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+  }
+
+  // Curve
+  graphCtx.strokeStyle = '#7fd0ff';
+  graphCtx.lineWidth = 1.4;
+  graphCtx.beginPath();
+  graphCurve.forEach((p, i) => {
+    const x = xOf(p.t), y = yOf(valueOf(p));
+    if (i === 0) graphCtx.moveTo(x, y); else graphCtx.lineTo(x, y);
+  });
+  graphCtx.stroke();
+
+  // Y axis labels (min/max)
+  graphCtx.fillStyle = '#56728f';
+  graphCtx.font = '8px monospace';
+  graphCtx.textAlign = 'right';
+  const fmtY = (v) => graphMode === 'lum' ? v.toExponential(1) : v.toFixed(1);
+  graphCtx.fillText(fmtY(yMax), padL - 3, padT + 7);
+  graphCtx.fillText(fmtY(yMin), padL - 3, padT + plotH);
+  graphCtx.textAlign = 'left';
+  graphCtx.fillText('0s', padL, padT + plotH + 12);
+  graphCtx.textAlign = 'right';
+  graphCtx.fillText(tMax.toFixed(1)+'s', padL+plotW, padT + plotH + 12);
+
+  // Live position dot, only meaningful once flash has started and animation hasn't exceeded curve range
+  if (currentGraphTSinceDet !== null) {
+    const tClamped = Math.max(0, Math.min(tMax, currentGraphTSinceDet));
+    const magNow = magnitudeAtTime(tClamped + PRE_DELAY);
+    const lumNow = Math.pow(10, -0.4 * magNow);
+    const dotVal = graphMode === 'lum' ? lumNow : magNow;
+    const dx = xOf(tClamped), dy = yOf(dotVal);
+    graphCtx.beginPath();
+    graphCtx.fillStyle = '#ffe08a';
+    graphCtx.arc(dx, dy, 3, 0, Math.PI*2);
+    graphCtx.fill();
+  }
+
+  document.getElementById('graphAxisNote').textContent =
+    graphMode === 'lum' ? 'Y: relative luminance (linear)' : 'Y: apparent magnitude (— dashed = naked-eye limit)';
+}
+
+let currentGraphTSinceDet = null; // seconds since detonation for the live dot, null = hide dot
+
+document.getElementById('graphModeLum').addEventListener('click', () => {
+  graphMode = 'lum';
+  document.getElementById('graphModeLum').classList.add('active');
+  document.getElementById('graphModeMag').classList.remove('active');
+  drawGraph();
+});
+document.getElementById('graphModeMag').addEventListener('click', () => {
+  graphMode = 'mag';
+  document.getElementById('graphModeMag').classList.add('active');
+  document.getElementById('graphModeLum').classList.remove('active');
+  drawGraph();
+});
+
 // ===== Animation loop with play/pause/restart control =====
 // playState: 'stopped' | 'playing' | 'paused'
 let playState = 'stopped';
@@ -589,6 +744,11 @@ function renderAtTime(t, dtOverride) {
     (tSinceDet < 0 ? '-' + Math.abs(tSinceDet).toFixed(2) : '+' + tSinceDet.toFixed(2));
   document.getElementById('magReadout').textContent =
     (t <= PRE_DELAY || perceivedMag > NAKED_EYE_LIMIT) ? '—' : perceivedMag.toFixed(2);
+
+  // Update the graph's live position dot. Before detonation, hide the dot
+  // (null) rather than plotting a meaningless pre-flash point.
+  currentGraphTSinceDet = (tSinceDet < 0) ? null : tSinceDet;
+  drawGraph();
 }
 
 function frame(now) {
@@ -659,14 +819,19 @@ function restartSim() {
 }
 
 function resetSimForNewScenario() {
-  // Called when parameters change: stop playback and show frame 0, requiring explicit Play.
+  // Called when parameters change (DETONATE / loading a scenario): reset to
+  // t=0 and immediately start playing. The left-side PLAY button is only
+  // needed afterward to resume from a PAUSE — it does not need to be
+  // pressed to start a freshly-detonated scenario.
   if (rafHandle) cancelAnimationFrame(rafHandle);
   playState = 'stopped';
   elapsedAtPause = 0;
   eyeSim.reset();
   lastFrameWallTime = null;
+  buildGraphCurve();
   updatePlaybackButtons();
   renderAtTime(0, 0);
+  playSim();
 }
 
 function formatDistance(km) {
@@ -847,6 +1012,7 @@ document.getElementById('distInput').addEventListener('keydown', (e) => { if (e.
 
 resize();
 applyScenario(YIELD_KT, DISTANCE_KM);
+buildGraphCurve();
 updateHudEvent();
 updatePlaybackButtons();
 renderAtTime(0); // draw initial frame but do NOT autoplay
