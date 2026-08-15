@@ -579,7 +579,7 @@ function renderAtTime(t, dtOverride) {
   document.getElementById('tReadout').textContent =
     (tSinceDet < 0 ? '-' + Math.abs(tSinceDet).toFixed(2) : '+' + tSinceDet.toFixed(2));
   document.getElementById('magReadout').textContent =
-    (t <= PRE_DELAY || t > TOTAL_DURATION) ? '—' : mag.toFixed(2);
+    (t <= PRE_DELAY || perceivedMag > NAKED_EYE_LIMIT) ? '—' : perceivedMag.toFixed(2);
 }
 
 function frame(now) {
