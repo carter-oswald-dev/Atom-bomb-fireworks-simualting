@@ -226,6 +226,41 @@ function computeScenario(yieldKt, distanceKm) {
   return { peakMag, tau };
 }
 
+// Fraction of total yield energy actually emitted as visible-band light
+// (as opposed to the full thermal pulse spectrum, which is dominated by
+// UV/IR). 0.5% here, not the ~33% figure sometimes quoted for total thermal
+// output share of yield.
+const VISIBLE_LIGHT_FRACTION = 0.005;
+
+// Calculate total naked-eye visibility duration in seconds with yield-dependent tau_blast.
+// This accounts for two effects together: (1) bigger yields have a longer
+// physical thermal pulse (tau_blast grows with yield), and (2) the human eye's
+// ~80ms visual persistence integrates brief flashes, making a very short pulse
+// look dimmer to a person than its instantaneous peak magnitude suggests.
+function getVisibilityDuration(m_phys_peak, yieldMegatons) {
+  const tau_eye = 0.08; // 80ms baseline human visual persistence
+
+  const yieldKilotons = yieldMegatons * 1000.0;
+
+  // tau_blast: physical plasma/debris cooling timescale, scales with yield^0.44
+  const tau_blast = 0.0003 * Math.pow(yieldKilotons, 0.44);
+
+  // Only VISIBLE_LIGHT_FRACTION of the yield's energy is actually visible-band
+  // photons; the rest is UV/IR/other thermal output the eye doesn't register.
+  // That dims the perceived peak further, on top of the eye-integration effect.
+  const visibleFractionMagAdjust = -2.5 * Math.log10(VISIBLE_LIGHT_FRACTION);
+
+  // Perceived peak magnitude after eye temporal integration.
+  // If the pulse is much shorter than tau_eye, the eye "smears" it and it
+  // looks fainter than the instantaneous physical peak.
+  const m_perceived_peak = m_phys_peak - (2.5 * Math.log10(tau_blast / tau_eye)) + visibleFractionMagAdjust;
+
+  if (m_perceived_peak >= NAKED_EYE_LIMIT) return 0.0;
+
+  const t_visible = tau_eye * ((NAKED_EYE_LIMIT - m_perceived_peak) / 1.086);
+  return t_visible;
+}
+
 function applyScenario(yieldKt, distanceKm) {
   YIELD_KT = yieldKt;
   DISTANCE_KM = distanceKm;
@@ -233,19 +268,12 @@ function applyScenario(yieldKt, distanceKm) {
   PEAK_MAG = peakMag;
   TAU = tau;
 
-  // Duration is derived directly from the light curve, not a heuristic
-  // multiple of tau: run until the flash actually decays to magnitude
-  // 6.0 (naked-eye limit), then keep going 5 more seconds, per spec.
-  // mag(t) = PEAK_MAG + (2.5/ln10) * (t - RISE_TIME) / TAU  for t >= RISE_TIME
-  // Solve for t where mag(t) == NAKED_EYE_LIMIT:
-  let timeToMag6;
-  if (PEAK_MAG >= NAKED_EYE_LIMIT) {
-    // Already fainter than naked-eye limit at peak — nothing to fade past.
-    timeToMag6 = RISE_TIME;
-  } else {
-    timeToMag6 = RISE_TIME + TAU * (NAKED_EYE_LIMIT - PEAK_MAG) * Math.LN10 / 2.5;
-  }
-  const postDetDuration = timeToMag6 + 5.0; // 5s tail after crossing mag 6.00
+  // Duration now comes from getVisibilityDuration, which folds in both the
+  // yield-dependent blast timescale and eye persistence-of-vision, rather
+  // than solving the raw physical light curve for mag 6 in isolation.
+  const yieldMt = yieldKt / 1000.0;
+  const visibleDuration = getVisibilityDuration(PEAK_MAG, yieldMt);
+  const postDetDuration = visibleDuration + 5.0; // 5s tail after crossing mag 6.00
   TOTAL_DURATION = Math.max(15, postDetDuration) + PRE_DELAY;
 }
 
@@ -265,6 +293,32 @@ function magToVisual(mag) {
   return visibility;
 }
 
+// ===== Human eye persistence-of-vision filter =====
+// Physically-accurate flash timing (magnitudeAtTime) is separate from what a
+// person actually perceives: the eye integrates/decays light over ~80ms.
+class EyePerceptionSimulator {
+  constructor() {
+    this.perceivedVisual = 0.0;
+    this.tauEye = 0.08;
+  }
+  updateFrame(currentPhysicsMagnitude, deltaTimeSeconds) {
+    const physicalLuminance = Math.pow(10, -0.4 * currentPhysicsMagnitude);
+    const decayFactor = Math.exp(-deltaTimeSeconds / this.tauEye);
+    this.perceivedVisual = (this.perceivedVisual * decayFactor) +
+                           (physicalLuminance * (1.0 - decayFactor));
+    return this.perceivedVisual;
+  }
+  reset() { this.perceivedVisual = 0.0; }
+}
+const eyeSim = new EyePerceptionSimulator();
+// Reference luminance at NAKED_EYE_LIMIT so perceived output can be renormalized to the 0..~1 visibility scale the renderer expects
+function luminanceToVisual(lum) {
+  const refLum = Math.pow(10, -0.4 * NAKED_EYE_LIMIT);
+  const peakLum = Math.pow(10, -0.4 * PEAK_MAG);
+  if (peakLum <= refLum) return 0;
+  return Math.max(0, Math.min(1.5, (lum - refLum) / (peakLum - refLum)));
+}
+
 // ===== Canvas setup =====
 const canvas = document.getElementById('sky');
 const skyWrap = document.getElementById('skyWrap');
@@ -277,7 +331,7 @@ function resize() {
   cx = W/2; cy = H/2;
   buildHorizon();
   if (playState !== 'playing') {
-    renderAtTime(elapsedAtPause);
+    renderAtTime(elapsedAtPause, 0);
   }
 }
 window.addEventListener('resize', resize);
@@ -503,12 +557,25 @@ function currentSimTime(now) {
   return elapsedAtPause;
 }
 
-function renderAtTime(t) {
+let lastFrameWallTime = null; // performance.now() of the previous rendered frame, for real eye-sim delta time
+
+function renderAtTime(t, dtOverride) {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
 
   const mag = magnitudeAtTime(t);
-  const visibility = magToVisual(mag);
+
+  // Feed the raw physics magnitude through the eye-persistence filter using
+  // real elapsed wall-clock time between frames, so brief flashes get
+  // properly smeared/integrated the way a human eye actually perceives them.
+  let dt = dtOverride;
+  if (dt === undefined) {
+    const nowMs = performance.now();
+    dt = (lastFrameWallTime === null) ? (1/60) : Math.max(0, (nowMs - lastFrameWallTime) / 1000);
+    lastFrameWallTime = nowMs;
+  }
+  const perceivedLum = eyeSim.updateFrame(mag, dt);
+  const visibility = luminanceToVisual(perceivedLum);
 
   const scale = Math.min(W, H) * 0.85;
   for (const s of STARS) {
@@ -566,7 +633,11 @@ function updatePlaybackButtons() {
 
 function playSim() {
   if (playState === 'playing') return;
-  if (elapsedAtPause >= TOTAL_DURATION) elapsedAtPause = 0; // finished -> restart on play
+  if (elapsedAtPause >= TOTAL_DURATION) {
+    elapsedAtPause = 0; // finished -> restart on play
+    eyeSim.reset();
+    lastFrameWallTime = null;
+  }
   playState = 'playing';
   segmentStartTime = performance.now();
   updatePlaybackButtons();
@@ -579,16 +650,19 @@ function pauseSim() {
   playState = 'paused';
   if (rafHandle) cancelAnimationFrame(rafHandle);
   updatePlaybackButtons();
-  renderAtTime(elapsedAtPause);
+  lastFrameWallTime = null; // next resume/redraw should not use a stale gap as its delta time
+  renderAtTime(elapsedAtPause, 0); // redraw current frame without advancing eye-sim state
 }
 
 function restartSim() {
   elapsedAtPause = 0;
+  eyeSim.reset();
+  lastFrameWallTime = null;
   if (playState === 'playing') {
     segmentStartTime = performance.now();
   } else {
     playState = 'stopped';
-    renderAtTime(0);
+    renderAtTime(0, 0);
   }
   updatePlaybackButtons();
 }
@@ -598,8 +672,10 @@ function resetSimForNewScenario() {
   if (rafHandle) cancelAnimationFrame(rafHandle);
   playState = 'stopped';
   elapsedAtPause = 0;
+  eyeSim.reset();
+  lastFrameWallTime = null;
   updatePlaybackButtons();
-  renderAtTime(0);
+  renderAtTime(0, 0);
 }
 
 function formatDistance(km) {
