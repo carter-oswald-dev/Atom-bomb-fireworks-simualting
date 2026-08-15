@@ -232,7 +232,21 @@ function applyScenario(yieldKt, distanceKm) {
   const { peakMag, tau } = computeScenario(yieldKt, distanceKm);
   PEAK_MAG = peakMag;
   TAU = tau;
-  TOTAL_DURATION = Math.max(15, tau * 12) + PRE_DELAY;
+
+  // Duration is derived directly from the light curve, not a heuristic
+  // multiple of tau: run until the flash actually decays to magnitude
+  // 6.0 (naked-eye limit), then keep going 5 more seconds, per spec.
+  // mag(t) = PEAK_MAG + (2.5/ln10) * (t - RISE_TIME) / TAU  for t >= RISE_TIME
+  // Solve for t where mag(t) == NAKED_EYE_LIMIT:
+  let timeToMag6;
+  if (PEAK_MAG >= NAKED_EYE_LIMIT) {
+    // Already fainter than naked-eye limit at peak — nothing to fade past.
+    timeToMag6 = RISE_TIME;
+  } else {
+    timeToMag6 = RISE_TIME + TAU * (NAKED_EYE_LIMIT - PEAK_MAG) * Math.LN10 / 2.5;
+  }
+  const postDetDuration = timeToMag6 + 5.0; // 5s tail after crossing mag 6.00
+  TOTAL_DURATION = Math.max(15, postDetDuration) + PRE_DELAY;
 }
 
 function magnitudeAtTime(tRaw) {
