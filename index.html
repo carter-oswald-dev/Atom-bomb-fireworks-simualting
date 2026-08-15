@@ -11,49 +11,229 @@
     overflow: hidden;
     font-family: 'Courier New', monospace;
   }
+  #app {
+    display: flex; flex-direction: row;
+    width: 100%; height: 100%;
+  }
+  #skyWrap {
+    position: relative;
+    flex: 1 1 auto;
+    height: 100%;
+    background: #000;
+    min-width: 0;
+  }
   canvas { display: block; }
+  #sidebarLeft, #sidebarRight {
+    flex: 0 0 240px;
+    width: 240px;
+    height: 100%;
+    background: #05070a;
+    border-left: 1px solid rgba(80,110,145,0.25);
+    border-right: 1px solid rgba(80,110,145,0.25);
+    box-sizing: border-box;
+    padding: 12px;
+    overflow-y: auto;
+  }
+  #sidebarLeft { border-left: none; border-right: 1px solid rgba(80,110,145,0.25); }
+  #sidebarRight { border-right: none; border-left: 1px solid rgba(80,110,145,0.25); }
   #hud {
-    position: fixed; top: 10px; left: 10px;
     background: rgba(8,12,18,0.55);
     border: 1px solid rgba(80,110,145,0.35);
     border-radius: 4px;
-    padding: 6px 10px;
-    color: #9fb6d4; font-size: 10.5px; line-height: 1.5;
+    padding: 8px 10px;
+    color: #9fb6d4; font-size: 11px; line-height: 1.6;
     user-select: none;
-    max-width: 240px;
-    backdrop-filter: blur(1px);
   }
   #hud .label { color: #56728f; display: inline-block; min-width: 62px; }
   #hud .row { white-space: nowrap; }
+  #hud .warn { color: #e0a35c; margin-top: 6px; white-space: normal; }
   #replay {
-    position: fixed; bottom: 16px; left: 16px;
+    margin-top: 12px;
+    width: 100%;
     background: rgba(20,25,35,0.7); color: #cfe0f2;
     border: 1px solid #3a4f66; padding: 8px 14px;
     font-family: 'Courier New', monospace; font-size: 12px;
     cursor: pointer; letter-spacing: 0.05em;
   }
   #replay:hover { background: rgba(40,55,75,0.9); }
+  #panel {
+    background: rgba(8,12,18,0.7);
+    border: 1px solid rgba(80,110,145,0.35);
+    border-radius: 4px;
+    padding: 10px 12px;
+    color: #9fb6d4; font-size: 11px; line-height: 1.6;
+    font-family: 'Courier New', monospace;
+  }
+  #panel label { display: block; color: #56728f; margin-top: 6px; }
+  #panel input {
+    width: 100%; box-sizing: border-box;
+    background: rgba(0,0,0,0.4); border: 1px solid #3a4f66;
+    color: #cfe0f2; font-family: 'Courier New', monospace;
+    font-size: 12px; padding: 4px 6px; margin-top: 2px;
+  }
+  #panel button {
+    margin-top: 8px; width: 100%;
+    background: rgba(40,55,75,0.9); color: #cfe0f2;
+    border: 1px solid #3a4f66; padding: 6px; cursor: pointer;
+    font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.05em;
+  }
+  #panel button:hover { background: rgba(60,80,105,0.95); }
+  #panel .err { color: #e06060; margin-top: 4px; }
+  #panel .hint { color: #56728f; font-size: 10px; margin-top: 6px; }
+  #scenarioPanel {
+    background: rgba(8,12,18,0.7);
+    border: 1px solid rgba(80,110,145,0.35);
+    border-radius: 4px;
+    padding: 10px 12px;
+    color: #9fb6d4; font-size: 11px; line-height: 1.6;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 12px;
+  }
+  #scenarioPanel label { display: block; color: #56728f; margin-top: 6px; }
+  #scenarioSelect {
+    width: 100%; box-sizing: border-box;
+    background: rgba(0,0,0,0.4); border: 1px solid #3a4f66;
+    color: #cfe0f2; font-family: 'Courier New', monospace;
+    font-size: 11px; padding: 4px 6px; margin-top: 2px;
+  }
+  #scenarioDesc {
+    margin-top: 6px; color: #7f97b3; font-size: 10.5px;
+    line-height: 1.5; white-space: normal; overflow-wrap: break-word;
+    word-break: break-word; max-height: 6.5em; overflow-y: auto;
+    border-left: 2px solid rgba(80,110,145,0.35); padding-left: 6px;
+  }
+  #scenarioFileBtn {
+    margin-top: 8px; width: 100%;
+    background: rgba(30,40,55,0.8); color: #9fb6d4;
+    border: 1px dashed #3a4f66; padding: 6px; cursor: pointer;
+    font-family: 'Courier New', monospace; font-size: 10.5px; text-align: center;
+  }
+  #scenarioFileBtn:hover { background: rgba(45,60,80,0.9); }
+  #scenarioFileInput { display: none; }
+  #playbackPanel {
+    margin-top: 12px;
+    display: flex; gap: 6px;
+  }
+  #playbackPanel button {
+    flex: 1 1 0;
+    background: rgba(20,25,35,0.7); color: #cfe0f2;
+    border: 1px solid #3a4f66; padding: 8px 4px;
+    font-family: 'Courier New', monospace; font-size: 11px;
+    cursor: pointer; letter-spacing: 0.03em;
+  }
+  #playbackPanel button:hover { background: rgba(40,55,75,0.9); }
+  #playbackPanel button:disabled { opacity: 0.4; cursor: default; }
+  @media (max-width: 800px) {
+    #app { flex-direction: column; }
+    #sidebarLeft, #sidebarRight {
+      flex: 0 0 auto; width: 100%; height: auto;
+      border: none; border-bottom: 1px solid rgba(80,110,145,0.25);
+    }
+    #skyWrap { flex: 1 1 auto; min-height: 40vh; }
+  }
 </style>
 </head>
 <body>
-<canvas id="sky"></canvas>
-<div id="hud">
-  <div class="row"><span class="label">Location</span>39.83N 98.58W</div>
-  <div class="row"><span class="label">Sky date</span>Jul 13/14 2026</div>
-  <div class="row"><span class="label">Event</span>500kt @ 200,000km</div>
-  <div class="row"><span class="label">Mag</span><span id="magReadout">—</span></div>
-  <div class="row"><span class="label">T+</span><span id="tReadout">0.00</span>s</div>
+<div id="app">
+  <div id="sidebarLeft">
+    <div id="hud">
+      <div class="row"><span class="label">Location</span>39.83N 98.58W</div>
+      <div class="row"><span class="label">Sky date</span>Jul 13/14 2026</div>
+      <div class="row"><span class="label">Event</span><span id="eventReadout">500kt @ 200,000km</span></div>
+      <div class="row"><span class="label">Mag</span><span id="magReadout">—</span></div>
+      <div class="row"><span class="label">T+</span><span id="tReadout">0.00</span>s</div>
+      <div class="row"><span class="label">Status</span><span id="statusReadout">Stopped</span></div>
+      <div id="visWarn" class="warn" style="display:none;"></div>
+    </div>
+    <div id="playbackPanel">
+      <button id="playBtn">▶ PLAY</button>
+      <button id="pauseBtn" disabled>⏸ PAUSE</button>
+      <button id="restartBtn">⟲ RESTART</button>
+    </div>
+  </div>
+  <div id="skyWrap">
+    <canvas id="sky"></canvas>
+  </div>
+  <div id="sidebarRight">
+    <div id="scenarioPanel">
+      <div><strong>PRESET SCENARIOS</strong></div>
+      <label>Choose scenario</label>
+      <select id="scenarioSelect">
+        <option value="">— Custom (manual entry) —</option>
+      </select>
+      <div id="scenarioDesc" style="display:none;"></div>
+      <input type="file" id="scenarioFileInput" accept="application/json,.json">
+      <button id="scenarioFileBtn">＋ LOAD SCENARIO JSON FILE</button>
+    </div>
+    <div id="panel">
+      <div><strong>DETONATION PARAMETERS</strong></div>
+      <label>Yield (kilotons, max 100,000)</label>
+      <input type="number" id="yieldInput" value="500" min="0.001" max="100000" step="any">
+      <label>Distance (km)</label>
+      <input type="number" id="distInput" value="200000" min="1" step="any">
+      <button id="runBtn">DETONATE</button>
+      <div id="panelErr" class="err" style="display:none;"></div>
+      <div class="hint">Max yield capped at 100,000 kt (100 Mt) — largest weapon ever designed (Tsar Bomba class).</div>
+    </div>
+  </div>
 </div>
-<button id="replay">REPLAY</button>
 
 <script>
 // ===== Shared physics: magnitude light curve =====
-const PEAK_MAG = -12.30;
+// Model: first-principles thermal pulse, calibrated against a known reference
+// point (500kt @ 200,000km => peak mag -12.30) so the yield/distance scaling
+// behaves physically (accounting for pulse-duration stretching with yield)
+// rather than a naive inverse-square/linear-yield ratio.
 const NAKED_EYE_LIMIT = 6.0;
-const TAU = 1.62;
 const PRE_DELAY = 5.0;
 const RISE_TIME = 0.1;
-const TOTAL_DURATION = 30.0 + PRE_DELAY;
+
+// User-adjustable inputs (kt, km). Defaults reproduce the original scenario.
+let YIELD_KT = 500;
+let DISTANCE_KM = 200000;
+const MAX_YIELD_KT = 100000; // 100 Mt — largest weapon class ever designed (Tsar Bomba)
+
+// Reference/calibration point from the original simulation
+const REF_YIELD_KT = 500;
+const REF_DIST_KM = 200000;
+const REF_PEAK_MAG = -12.30;
+const REF_TAU = 1.62; // decay time constant (s) at reference yield
+
+let PEAK_MAG = REF_PEAK_MAG;
+let TAU = REF_TAU;
+let TOTAL_DURATION = 30.0 + PRE_DELAY;
+
+function computeScenario(yieldKt, distanceKm) {
+  // Thermal pulse "second maximum" timing scales with sqrt(yield);
+  // classic Glasstone & Dolan approximation: t ~ 0.0417 * W_kt^0.44 (seconds)
+  const tSecondMaxRef = 0.0417 * Math.pow(REF_YIELD_KT, 0.44);
+  const tSecondMax = 0.0417 * Math.pow(yieldKt, 0.44);
+  const durationScale = tSecondMax / tSecondMaxRef;
+
+  // Peak power scales with total visible energy / effective pulse duration.
+  // Total visible energy ∝ yield (thermal & visible fractions assumed constant).
+  // Effective duration ∝ tSecondMax. So peak power ∝ yield / durationScale.
+  const yieldRatio = yieldKt / REF_YIELD_KT;
+  const peakPowerRatio = yieldRatio / durationScale;
+
+  // Inverse-square distance falloff
+  const distRatio = distanceKm / REF_DIST_KM;
+  const fluxRatio = peakPowerRatio / (distRatio * distRatio);
+
+  const peakMag = REF_PEAK_MAG - 2.5 * Math.log10(fluxRatio);
+  const tau = REF_TAU * durationScale;
+
+  return { peakMag, tau };
+}
+
+function applyScenario(yieldKt, distanceKm) {
+  YIELD_KT = yieldKt;
+  DISTANCE_KM = distanceKm;
+  const { peakMag, tau } = computeScenario(yieldKt, distanceKm);
+  PEAK_MAG = peakMag;
+  TAU = tau;
+  TOTAL_DURATION = Math.max(15, tau * 12) + PRE_DELAY;
+}
 
 function magnitudeAtTime(tRaw) {
   const t = tRaw - PRE_DELAY;
@@ -73,14 +253,18 @@ function magToVisual(mag) {
 
 // ===== Canvas setup =====
 const canvas = document.getElementById('sky');
+const skyWrap = document.getElementById('skyWrap');
 const ctx = canvas.getContext('2d');
 let W, H, cx, cy;
 
 function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+  W = canvas.width = skyWrap.clientWidth;
+  H = canvas.height = skyWrap.clientHeight;
   cx = W/2; cy = H/2;
   buildHorizon();
+  if (playState !== 'playing') {
+    renderAtTime(elapsedAtPause);
+  }
 }
 window.addEventListener('resize', resize);
 
@@ -291,14 +475,21 @@ function drawFlash(visibility, mag) {
   ctx.fill();
 }
 
-// ===== Animation loop =====
-let startTime = null;
-let running = true;
+// ===== Animation loop with play/pause/restart control =====
+// playState: 'stopped' | 'playing' | 'paused'
+let playState = 'stopped';
+let elapsedAtPause = 0;   // seconds of sim-time banked from previous play segments
+let segmentStartTime = null; // performance.now() timestamp when current play segment began
+let rafHandle = null;
 
-function frame(now) {
-  if (startTime === null) startTime = now;
-  const t = (now - startTime) / 1000;
+function currentSimTime(now) {
+  if (playState === 'playing') {
+    return elapsedAtPause + (now - segmentStartTime) / 1000;
+  }
+  return elapsedAtPause;
+}
 
+function renderAtTime(t) {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
 
@@ -326,22 +517,260 @@ function frame(now) {
     (tSinceDet < 0 ? '-' + Math.abs(tSinceDet).toFixed(2) : '+' + tSinceDet.toFixed(2));
   document.getElementById('magReadout').textContent =
     (t <= PRE_DELAY || t > TOTAL_DURATION) ? '—' : mag.toFixed(2);
+}
 
-  if (t < TOTAL_DURATION && running) {
-    requestAnimationFrame(frame);
+function frame(now) {
+  if (playState !== 'playing') return;
+  const t = currentSimTime(now);
+  renderAtTime(t);
+
+  if (t >= TOTAL_DURATION) {
+    elapsedAtPause = TOTAL_DURATION;
+    playState = 'stopped';
+    updatePlaybackButtons();
+    renderAtTime(TOTAL_DURATION);
+    return;
+  }
+  rafHandle = requestAnimationFrame(frame);
+}
+
+function updatePlaybackButtons() {
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const statusEl = document.getElementById('statusReadout');
+  if (playState === 'playing') {
+    playBtn.disabled = true; pauseBtn.disabled = false;
+    statusEl.textContent = 'Playing';
+  } else if (playState === 'paused') {
+    playBtn.disabled = false; pauseBtn.disabled = true;
+    statusEl.textContent = 'Paused';
+  } else {
+    playBtn.disabled = false; pauseBtn.disabled = true;
+    statusEl.textContent = 'Stopped';
   }
 }
 
-function startAnimation() {
-  startTime = null;
-  running = true;
-  requestAnimationFrame(frame);
+function playSim() {
+  if (playState === 'playing') return;
+  if (elapsedAtPause >= TOTAL_DURATION) elapsedAtPause = 0; // finished -> restart on play
+  playState = 'playing';
+  segmentStartTime = performance.now();
+  updatePlaybackButtons();
+  rafHandle = requestAnimationFrame(frame);
 }
 
-document.getElementById('replay').addEventListener('click', startAnimation);
+function pauseSim() {
+  if (playState !== 'playing') return;
+  elapsedAtPause = currentSimTime(performance.now());
+  playState = 'paused';
+  if (rafHandle) cancelAnimationFrame(rafHandle);
+  updatePlaybackButtons();
+  renderAtTime(elapsedAtPause);
+}
+
+function restartSim() {
+  elapsedAtPause = 0;
+  if (playState === 'playing') {
+    segmentStartTime = performance.now();
+  } else {
+    playState = 'stopped';
+    renderAtTime(0);
+  }
+  updatePlaybackButtons();
+}
+
+function resetSimForNewScenario() {
+  // Called when parameters change: stop playback and show frame 0, requiring explicit Play.
+  if (rafHandle) cancelAnimationFrame(rafHandle);
+  playState = 'stopped';
+  elapsedAtPause = 0;
+  updatePlaybackButtons();
+  renderAtTime(0);
+}
+
+function formatDistance(km) {
+  return km.toLocaleString(undefined, {maximumFractionDigits: 0}) + 'km';
+}
+function formatYield(kt) {
+  if (kt >= 1000) return (kt/1000).toLocaleString(undefined,{maximumFractionDigits:2}) + 'Mt';
+  return kt.toLocaleString(undefined,{maximumFractionDigits:3}) + 'kt';
+}
+
+function updateHudEvent() {
+  document.getElementById('eventReadout').textContent =
+    formatYield(YIELD_KT) + ' @ ' + formatDistance(DISTANCE_KM);
+  const warnEl = document.getElementById('visWarn');
+  if (PEAK_MAG > NAKED_EYE_LIMIT) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = 'Peak mag ' + PEAK_MAG.toFixed(2) +
+      ' is fainter than +6.0 — NOT visible to the naked eye. Try a larger yield or shorter distance.';
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+
+function runScenarioFromInputs() {
+  const yieldInput = document.getElementById('yieldInput');
+  const distInput = document.getElementById('distInput');
+  const errEl = document.getElementById('panelErr');
+  errEl.style.display = 'none';
+
+  let yieldKt = parseFloat(yieldInput.value);
+  let distKm = parseFloat(distInput.value);
+
+  if (!isFinite(yieldKt) || yieldKt <= 0) {
+    errEl.textContent = 'Enter a positive yield (kt).';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!isFinite(distKm) || distKm <= 0) {
+    errEl.textContent = 'Enter a positive distance (km).';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (yieldKt > MAX_YIELD_KT) {
+    yieldKt = MAX_YIELD_KT;
+    yieldInput.value = MAX_YIELD_KT;
+    errEl.textContent = 'Yield capped at 100,000 kt (100 Mt) — largest weapon ever designed.';
+    errEl.style.display = 'block';
+  }
+
+  applyScenario(yieldKt, distKm);
+  updateHudEvent();
+  resetSimForNewScenario();
+}
+
+// ===== Scenario JSON loading =====
+// Each scenario JSON: { "name": "...", "description": "...", "distance_km": N, "yield_kt": N }
+// Description is truncated to 250 chars regardless of file content.
+const DESC_MAX_CHARS = 250;
+const MANIFEST_URL = 'scenarios/index.json';
+let loadedScenarios = []; // {name, description, distance_km, yield_kt}
+
+function truncateDesc(s) {
+  if (typeof s !== 'string') return '';
+  return s.length > DESC_MAX_CHARS ? s.slice(0, DESC_MAX_CHARS) : s;
+}
+
+function validateScenario(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  const name = typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : 'Unnamed scenario';
+  const description = truncateDesc(obj.description || obj.details || '');
+  const distance_km = parseFloat(obj.distance_km ?? obj.distanceKm ?? obj.distance);
+  const yield_kt = parseFloat(obj.yield_kt ?? obj.yieldKt ?? obj.yield);
+  if (!isFinite(distance_km) || distance_km <= 0) return null;
+  if (!isFinite(yield_kt) || yield_kt <= 0) return null;
+  return { name, description, distance_km, yield_kt: Math.min(yield_kt, MAX_YIELD_KT) };
+}
+
+function addScenarioOption(scenario) {
+  loadedScenarios.push(scenario);
+  const idx = loadedScenarios.length - 1;
+  const opt = document.createElement('option');
+  opt.value = String(idx);
+  opt.textContent = scenario.name;
+  document.getElementById('scenarioSelect').appendChild(opt);
+  return idx;
+}
+
+async function loadManifest() {
+  try {
+    const res = await fetch(MANIFEST_URL, { cache: 'no-cache' });
+    if (!res.ok) return; // no manifest present — fine, custom-only mode
+    const manifest = await res.json();
+    if (!Array.isArray(manifest)) return;
+    for (const entry of manifest) {
+      // entry can be a filename string ("scenarios/foo.json") or an inline object
+      if (typeof entry === 'string') {
+        try {
+          const fRes = await fetch(entry, { cache: 'no-cache' });
+          if (!fRes.ok) continue;
+          const data = await fRes.json();
+          const scenario = validateScenario(data);
+          if (scenario) addScenarioOption(scenario);
+        } catch (e) { /* skip bad file */ }
+      } else {
+        const scenario = validateScenario(entry);
+        if (scenario) addScenarioOption(scenario);
+      }
+    }
+  } catch (e) {
+    // No manifest / not hosted with one — silently fall back to custom-only mode.
+  }
+}
+
+function applySelectedScenario(idx) {
+  const scenario = loadedScenarios[idx];
+  if (!scenario) return;
+  document.getElementById('yieldInput').value = scenario.yield_kt;
+  document.getElementById('distInput').value = scenario.distance_km;
+  const descEl = document.getElementById('scenarioDesc');
+  if (scenario.description) {
+    descEl.textContent = scenario.description;
+    descEl.style.display = 'block';
+  } else {
+    descEl.style.display = 'none';
+  }
+  applyScenario(scenario.yield_kt, scenario.distance_km);
+  updateHudEvent();
+  resetSimForNewScenario();
+}
+
+document.getElementById('scenarioSelect').addEventListener('change', (e) => {
+  const val = e.target.value;
+  const descEl = document.getElementById('scenarioDesc');
+  if (val === '') {
+    descEl.style.display = 'none';
+    return;
+  }
+  applySelectedScenario(parseInt(val, 10));
+});
+
+document.getElementById('scenarioFileBtn').addEventListener('click', () => {
+  document.getElementById('scenarioFileInput').click();
+});
+document.getElementById('scenarioFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const scenario = validateScenario(data);
+      if (!scenario) {
+        alert('Invalid scenario JSON. Required fields: name, distance_km, yield_kt (description optional, max 250 chars).');
+        return;
+      }
+      const idx = addScenarioOption(scenario);
+      document.getElementById('scenarioSelect').value = String(idx);
+      applySelectedScenario(idx);
+    } catch (err) {
+      alert('Could not parse JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // allow re-loading the same filename later
+});
+
+document.getElementById('playBtn').addEventListener('click', playSim);
+document.getElementById('pauseBtn').addEventListener('click', pauseSim);
+document.getElementById('restartBtn').addEventListener('click', restartSim);
+
+document.getElementById('runBtn').addEventListener('click', () => {
+  document.getElementById('scenarioSelect').value = '';
+  document.getElementById('scenarioDesc').style.display = 'none';
+  runScenarioFromInputs();
+});
+document.getElementById('yieldInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('runBtn').click(); });
+document.getElementById('distInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('runBtn').click(); });
 
 resize();
-startAnimation();
+applyScenario(YIELD_KT, DISTANCE_KM);
+updateHudEvent();
+updatePlaybackButtons();
+renderAtTime(0); // draw initial frame but do NOT autoplay
+loadManifest();
+
 </script>
 </body>
 </html>
