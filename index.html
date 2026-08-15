@@ -285,12 +285,21 @@ class EyePerceptionSimulator {
   reset() { this.perceivedVisual = 0.0; }
 }
 const eyeSim = new EyePerceptionSimulator();
-// Reference luminance at NAKED_EYE_LIMIT so perceived output can be renormalized to the 0..~1 visibility scale the renderer expects
+// Convert eye-integrated luminance to a 0..1 visibility scalar for rendering.
+// IMPORTANT: this must be magnitude-based (logarithmic), not a linear ratio
+// against the scenario's single instantaneous peak luminance. A linear ratio
+// against peakLum makes anything even slightly past the exact T=0 peak read
+// as "barely visible" even when it's still thousands of times brighter than
+// the naked-eye limit (e.g. mag -7.5 read as 1.5% visibility instead of
+// being an obviously bright flash) — that was the actual rendering bug.
+// Fixed magnitude range chosen so it visibly saturates well before the
+// flash fades to the naked-eye limit, giving a clean bright-to-dim taper.
 function luminanceToVisual(lum) {
-  const refLum = Math.pow(10, -0.4 * NAKED_EYE_LIMIT);
-  const peakLum = Math.pow(10, -0.4 * PEAK_MAG);
-  if (peakLum <= refLum) return 0;
-  return Math.max(0, Math.min(1.5, (lum - refLum) / (peakLum - refLum)));
+  const perceivedMag = (lum > 1e-12) ? -2.5 * Math.log10(lum) : (NAKED_EYE_LIMIT + 10);
+  const VISUAL_SATURATION_MAG = NAKED_EYE_LIMIT - 8; // fully "1.0" bright by this magnitude or brighter
+  const range = NAKED_EYE_LIMIT - VISUAL_SATURATION_MAG;
+  const visibility = (NAKED_EYE_LIMIT - perceivedMag) / range;
+  return Math.max(0, Math.min(1.5, visibility));
 }
 
 // ===== Canvas setup =====
