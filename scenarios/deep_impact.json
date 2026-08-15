@@ -1,0 +1,6 @@
+{
+  "name": "Deep Impact movie nuke",
+  "description": "The 5 Mt nuclear device used in the 1998 film Deep Impact, detonated at a distance of 20 light-seconds (5,995,849 km) from Earth.",
+  "distance_km": 5995849,
+  "yield_kt": 5000
+}

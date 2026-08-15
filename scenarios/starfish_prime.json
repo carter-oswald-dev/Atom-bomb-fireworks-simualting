@@ -1,0 +1,6 @@
+{
+  "name": "Starfish Prime (real EMP test)",
+  "description": "US high-altitude nuclear test on July 9, 1962. A 1.4 Mt warhead detonated at ~400 km altitude, producing a nationwide EMP over Hawaii and disrupting satellites.",
+  "distance_km": 400,
+  "yield_kt": 1400
+}

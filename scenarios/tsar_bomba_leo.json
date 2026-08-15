@@ -1,0 +1,6 @@
+{
+  "name": "Tsar Bomba @ LEO altitude",
+  "description": "The largest weapon ever detonated (50 Mt design yield, ~57 Mt actual) placed at low Earth orbit altitude (~400 km) directly overhead.",
+  "distance_km": 400,
+  "yield_kt": 50000
+}

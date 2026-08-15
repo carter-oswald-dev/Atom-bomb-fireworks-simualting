@@ -1,0 +1,6 @@
+{
+  "name": "Original reference: 500kt @ 200,000km",
+  "description": "The original calibration scenario this simulator was built around, roughly full-moon brightness.",
+  "distance_km": 200000,
+  "yield_kt": 500
+}

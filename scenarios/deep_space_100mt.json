@@ -1,0 +1,6 @@
+{
+  "name": "100 Mt at 5,995,850 km",
+  "description": "Maximum-yield weapon class (100 Mt, the largest ever designed) at roughly 15.6x lunar distance, deep interplanetary range.",
+  "distance_km": 5995850,
+  "yield_kt": 100000
+}

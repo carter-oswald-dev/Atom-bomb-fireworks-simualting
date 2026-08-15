@@ -1,0 +1,8 @@
+[
+  "scenarios/original_500kt.json",
+  "scenarios/tsar_bomba_leo.json",
+  "scenarios/moon_distance_5mt.json",
+  "scenarios/deep_space_100mt.json",
+  "scenarios/starfish_prime.json",
+  "scenarios/deep_impact.json"
+]

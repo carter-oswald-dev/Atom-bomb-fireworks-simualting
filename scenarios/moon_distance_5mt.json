@@ -1,0 +1,6 @@
+{
+  "name": "5 Mt at lunar distance",
+  "description": "A 5 megaton device detonated at the average Earth-Moon distance (~384,400 km).",
+  "distance_km": 384400,
+  "yield_kt": 5000
+}
