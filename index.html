@@ -197,68 +197,39 @@ const MAX_YIELD_KT = 100000; // 100 Mt — largest weapon class ever designed (T
 const REF_YIELD_KT = 500;
 const REF_DIST_KM = 200000;
 const REF_PEAK_MAG = -12.30;
-const REF_TAU = 1.62; // decay time constant (s) at reference yield
+
+// Fraction of total yield energy actually emitted as visible-band light
+// (as opposed to the full thermal pulse spectrum, dominated by UV/IR).
+const VISIBLE_LIGHT_FRACTION = 0.005; // 0.5%
+
+// Fixed physical decay: half the visible-light energy output is emitted within
+// 300ms of peak, regardless of yield. This anchors the fade-off in a real
+// measured-style time constant instead of a yield-dependent pulse-duration
+// heuristic. Exponential decay: flux(t) = flux_peak * exp(-t/TAU_DECAY),
+// where half-life T_HALF = TAU_DECAY * ln(2)  =>  TAU_DECAY = T_HALF / ln(2).
+const T_HALF = 0.300; // seconds
+const TAU_DECAY = T_HALF / Math.LN2;
 
 let PEAK_MAG = REF_PEAK_MAG;
-let TAU = REF_TAU;
+let TAU = TAU_DECAY;
 let TOTAL_DURATION = 30.0 + PRE_DELAY;
 
 function computeScenario(yieldKt, distanceKm) {
-  // Thermal pulse "second maximum" timing scales with sqrt(yield);
-  // classic Glasstone & Dolan approximation: t ~ 0.0417 * W_kt^0.44 (seconds)
-  const tSecondMaxRef = 0.0417 * Math.pow(REF_YIELD_KT, 0.44);
-  const tSecondMax = 0.0417 * Math.pow(yieldKt, 0.44);
-  const durationScale = tSecondMax / tSecondMaxRef;
-
-  // Peak power scales with total visible energy / effective pulse duration.
-  // Total visible energy ∝ yield (thermal & visible fractions assumed constant).
-  // Effective duration ∝ tSecondMax. So peak power ∝ yield / durationScale.
+  // Peak visible flux scales with (yield x visible fraction) / distance^2.
+  // VISIBLE_LIGHT_FRACTION is constant across yields, so it cancels in this
+  // ratio against the reference point exactly as it would in the peak-mag
+  // formula alone — it does not change peakMag here, but is kept explicit
+  // since it's the physically meaningful quantity the ratio represents.
   const yieldRatio = yieldKt / REF_YIELD_KT;
-  const peakPowerRatio = yieldRatio / durationScale;
-
-  // Inverse-square distance falloff
   const distRatio = distanceKm / REF_DIST_KM;
-  const fluxRatio = peakPowerRatio / (distRatio * distRatio);
+  const fluxRatio = yieldRatio / (distRatio * distRatio);
 
   const peakMag = REF_PEAK_MAG - 2.5 * Math.log10(fluxRatio);
-  const tau = REF_TAU * durationScale;
 
-  return { peakMag, tau };
-}
-
-// Fraction of total yield energy actually emitted as visible-band light
-// (as opposed to the full thermal pulse spectrum, which is dominated by
-// UV/IR). 0.5% here, not the ~33% figure sometimes quoted for total thermal
-// output share of yield.
-const VISIBLE_LIGHT_FRACTION = 0.005;
-
-// Calculate total naked-eye visibility duration in seconds with yield-dependent tau_blast.
-// This accounts for two effects together: (1) bigger yields have a longer
-// physical thermal pulse (tau_blast grows with yield), and (2) the human eye's
-// ~80ms visual persistence integrates brief flashes, making a very short pulse
-// look dimmer to a person than its instantaneous peak magnitude suggests.
-function getVisibilityDuration(m_phys_peak, yieldMegatons) {
-  const tau_eye = 0.08; // 80ms baseline human visual persistence
-
-  const yieldKilotons = yieldMegatons * 1000.0;
-
-  // tau_blast: physical plasma/debris cooling timescale, scales with yield^0.44
-  const tau_blast = 0.0003 * Math.pow(yieldKilotons, 0.44);
-
-  // Only VISIBLE_LIGHT_FRACTION of the yield's energy is actually visible-band
-  // photons; the rest is UV/IR/other thermal output the eye doesn't register.
-  // That dims the perceived peak further, on top of the eye-integration effect.
-  const visibleFractionMagAdjust = -2.5 * Math.log10(VISIBLE_LIGHT_FRACTION);
-
-  // Perceived peak magnitude after eye temporal integration.
-  // If the pulse is much shorter than tau_eye, the eye "smears" it and it
-  // looks fainter than the instantaneous physical peak.
-  const m_perceived_peak = m_phys_peak - (2.5 * Math.log10(tau_blast / tau_eye)) + visibleFractionMagAdjust;
-
-  if (m_perceived_peak >= NAKED_EYE_LIMIT) return 0.0;
-
-  const t_visible = tau_eye * ((NAKED_EYE_LIMIT - m_perceived_peak) / 1.086);
-  return t_visible;
+  // Decay time constant is now fixed (not yield-dependent) — the 300ms
+  // half-life is treated as an intrinsic property of the visible-light
+  // emission falloff, per the calibration this scenario uses.
+  return { peakMag, tau: TAU_DECAY };
 }
 
 function applyScenario(yieldKt, distanceKm) {
@@ -268,13 +239,16 @@ function applyScenario(yieldKt, distanceKm) {
   PEAK_MAG = peakMag;
   TAU = tau;
 
-  // Duration now comes from getVisibilityDuration, which folds in both the
-  // yield-dependent blast timescale and eye persistence-of-vision, rather
-  // than solving the raw physical light curve for mag 6 in isolation.
-  const yieldMt = yieldKt / 1000.0;
-  const visibleDuration = getVisibilityDuration(PEAK_MAG, yieldMt);
-  const postDetDuration = visibleDuration + 5.0; // 5s tail after crossing mag 6.00
-  TOTAL_DURATION = Math.max(15, postDetDuration) + PRE_DELAY;
+  // Solve directly for when the exponential decay crosses magnitude 6.0
+  // (naked-eye limit), then add a fixed tail so the fade is visible on screen.
+  let timeToMag6;
+  if (PEAK_MAG >= NAKED_EYE_LIMIT) {
+    timeToMag6 = RISE_TIME;
+  } else {
+    timeToMag6 = RISE_TIME + TAU * (NAKED_EYE_LIMIT - PEAK_MAG) * Math.LN10 / 2.5;
+  }
+  const postDetDuration = timeToMag6 + 5.0; // 5s tail after crossing mag 6.00
+  TOTAL_DURATION = postDetDuration + PRE_DELAY;
 }
 
 function magnitudeAtTime(tRaw) {
