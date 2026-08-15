@@ -550,10 +550,18 @@ function renderAtTime(t, dtOverride) {
   }
   const perceivedLum = eyeSim.updateFrame(mag, dt);
   const visibility = luminanceToVisual(perceivedLum);
+  // Invert luminance -> magnitude so star washout/reappearance is driven by
+  // what the eye actually perceives (persistence-smoothed), not the raw
+  // instantaneous physics curve. Without this, stars snap back to visible
+  // far faster than the flash glow itself fades, since the fast 300ms decay
+  // outruns the eye's ~80ms integration on the way down.
+  const perceivedMag = (perceivedLum > 1e-12)
+    ? -2.5 * Math.log10(perceivedLum)
+    : (NAKED_EYE_LIMIT + 10);
 
   const scale = Math.min(W, H) * 0.85;
   for (const s of STARS) {
-    const vis = starVisibility(s.m, mag);
+    const vis = starVisibility(s.m, perceivedMag);
     if (vis <= 0.001) continue;
     const x = cx + s.u*scale, y = cy + s.v*scale;
     if (y > H * 0.82) continue;
@@ -563,7 +571,7 @@ function renderAtTime(t, dtOverride) {
     ctx.fill();
   }
 
-  drawConstellations(mag);
+  drawConstellations(perceivedMag);
   drawFlash(visibility, mag);
   drawGround(visibility);
 
